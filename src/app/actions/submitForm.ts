@@ -1,4 +1,4 @@
-"use server"
+"use server";
 
 import { Client } from "@notionhq/client";
 
@@ -7,8 +7,7 @@ const notion = new Client({
 });
 
 export async function saveFormData() {
-  "use server";
-  const response = await notion.pages.create({
+  await notion.pages.create({
     parent: {
       database_id: "8581dfcfecac4db89de263b318b39ce0",
     },
@@ -19,5 +18,4 @@ export async function saveFormData() {
       },
     },
   });
-  console.log(response);
 }
