@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Fragment, useEffect, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
@@ -32,108 +32,125 @@ const chores = {
 };
 
 export default function Home() {
-  return <MyForm/>
+  return <MyForm />;
 }
 
 function MyForm() {
-  "use client"
+  "use client";
   const [currentPerson, setCurrentPerson] = useLocalStorage("loggedPerson", "");
-    const [currentChore, setCurrentChore] = useState("");
-    const [timeSpent, setTimeSpent] = useState(0);
-    const [startTimestamp, setStartTimestamp] = useState(Date.now());
-    const [isCountingTime, setIsCountingTime] = useState(false);
-    const [note, setNote] = useState("");
-    useEffect(() => {
-      if (isCountingTime) {
-        const intervalId = setInterval(() => {
-          setTimeSpent((timeSpent) => timeSpent + 1000);
-        }, 1000);
-        return () => clearInterval(intervalId);
-      }
-    }, [isCountingTime]);
-    return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+  const [currentChore, setCurrentChore] = useState("");
+  const [timeSpent, setTimeSpent] = useState(0);
+  const [startTimestamp, setStartTimestamp] = useState(Date.now());
+  const [isCountingTime, setIsCountingTime] = useState(false);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    if (isCountingTime) {
+      const intervalId = setInterval(() => {
+        setTimeSpent((timeSpent) => timeSpent + 1000);
+      }, 1000);
+      return () => clearInterval(intervalId);
+    }
+  }, [isCountingTime]);
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/service-worker.js").then(
+          function (registration) {
+            console.log(
+              "Service Worker registration successful with scope: ",
+              registration.scope
+            );
+          },
+          function (err) {
+            console.log("Service Worker registration failed: ", err);
+          }
+        );
+      });
+    }
+  }, []);
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <MyRadio
+        value={currentPerson}
+        onChange={setCurrentPerson}
+        options={Object.entries(people).map(([key, value]) => ({
+          value: key,
+          label: value.name,
+        }))}
+        orientation="horizontal"
+      />
+      <Box sx={{ height: "200px", overflowY: "auto" }}>
         <MyRadio
-          value={currentPerson}
-          onChange={setCurrentPerson}
-          options={Object.entries(people).map(([key, value]) => ({
+          value={currentChore}
+          onChange={setCurrentChore}
+          options={Object.entries(chores).map(([key, value]) => ({
             value: key,
             label: value.name,
           }))}
-          orientation="horizontal"
+          orientation="vertical"
         />
-        <Box sx={{ height: "200px", overflowY: "auto" }}>
-          <MyRadio
-            value={currentChore}
-            onChange={setCurrentChore}
-            options={Object.entries(chores).map(([key, value]) => ({
-              value: key,
-              label: value.name,
-            }))}
-            orientation="vertical"
-          />
-        </Box>
+      </Box>
+      <FormControl>
+        <FormLabel>Note</FormLabel>
+        <Textarea
+          minRows={2}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </FormControl>
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
         <FormControl>
-          <FormLabel>Note</FormLabel>
-          <Textarea
-            minRows={2}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
+          <FormLabel>Inizio</FormLabel>
+          <Input
+            type="datetime-local"
+            value={new Date(
+              startTimestamp - new Date().getTimezoneOffset() * 60 * 1000
+            )
+              .toISOString()
+              .slice(0, 16)}
+            onChange={(event) => {
+              console.log(event.target.value);
+              setStartTimestamp(new Date(event.target.value).getTime());
+            }}
           />
         </FormControl>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
-          <FormControl>
-            <FormLabel>Inizio</FormLabel>
-            <Input
-              type="datetime-local"
-              value={new Date(
-                startTimestamp - new Date().getTimezoneOffset() * 60 * 1000
-              )
-                .toISOString()
-                .slice(0, 16)}
-              onChange={(event) => {
-                console.log(event.target.value);
-                setStartTimestamp(new Date(event.target.value).getTime());
-              }}
-            />
-          </FormControl>
-          <Button
-            onClick={() => {
-              setStartTimestamp(Date.now());
-            }}
-          >
-            Ora
-          </Button>
-        </Box>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
-          <FormControl>
-            <FormLabel>Tempo [minuti]</FormLabel>
-            <Input
-              sx={{ width: 200 }}
-              value={Math.trunc(timeSpent / 1000 / 60)}
-              onChange={(event) =>
-                setTimeSpent(event.target.valueAsNumber * 60 * 1000)
-              }
-              endDecorator={`secondi ${Math.trunc(timeSpent / 1000) % 60}`}
-            />
-          </FormControl>
-          <Button
-            onClick={() => {
-              setIsCountingTime(!isCountingTime);
-            }}
-          >
-            {isCountingTime ? "Pausa" : "Conteggia"}
-          </Button>
-        </Box>
         <Button
           onClick={() => {
-            saveFormData();
+            setStartTimestamp(Date.now());
           }}
         >
-          Inserisci
+          Ora
         </Button>
       </Box>
-    );
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
+        <FormControl>
+          <FormLabel>Tempo [minuti]</FormLabel>
+          <Input
+            sx={{ width: 200 }}
+            value={Math.trunc(timeSpent / 1000 / 60)}
+            onChange={(event) =>
+              setTimeSpent(event.target.valueAsNumber * 60 * 1000)
+            }
+            endDecorator={`secondi ${Math.trunc(timeSpent / 1000) % 60}`}
+          />
+        </FormControl>
+        <Button
+          onClick={() => {
+            setIsCountingTime(!isCountingTime);
+          }}
+        >
+          {isCountingTime ? "Pausa" : "Conteggia"}
+        </Button>
+      </Box>
+      <Button
+        onClick={() => {
+          saveFormData();
+        }}
+      >
+        Inserisci
+      </Button>
+    </Box>
+  );
 }
 
 function MyRadio({
@@ -170,4 +187,3 @@ function MyRadio({
     </RadioGroup>
   );
 }
-
