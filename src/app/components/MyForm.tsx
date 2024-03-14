@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import React, { Fragment, Suspense, useEffect, useState } from "react";
 import Box from "@mui/joy/Box";
 import List from "@mui/joy/List";
 import ListItem from "@mui/joy/ListItem";
@@ -11,40 +11,21 @@ import Button from "@mui/joy/Button";
 import FormControl from "@mui/joy/FormControl";
 import FormLabel from "@mui/joy/FormLabel";
 import Input from "@mui/joy/Input";
-import { Textarea } from "@mui/joy";
-import { saveFormData } from "../actions/submitForm";
+import { Alert, Textarea } from "@mui/joy";
+import { getTableDescription, saveFormData } from "../actions/submitForm";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
+import { zodValidator } from "@tanstack/zod-form-adapter";
+import "./style.css";
 
-const people = {
-  "1": { name: "Alice" },
-  "2": { name: "Cristiana" },
-  "3": { name: "Frederik" },
-};
-
-const chores = {
-  "1": { name: "Lavatrice" },
-  "2": { name: "Panni" },
-  "3": { name: "Piatti" },
-  "4": { name: "Cucinare" },
-  "5": { name: "Mettere a posto" },
-  "6": { name: "Pulizie" },
-  "7": { name: "Altro" },
-};
+const client = new QueryClient({});
 
 export function MyForm() {
-  const [currentPerson, setCurrentPerson] = useState("");
-  const [currentChore, setCurrentChore] = useState("");
-  const [timeSpent, setTimeSpent] = useState(0);
-  const [startTimestamp, setStartTimestamp] = useState(Date.now());
-  const [isCountingTime, setIsCountingTime] = useState(false);
-  const [note, setNote] = useState("");
-  useEffect(() => {
-    if (isCountingTime) {
-      const intervalId = setInterval(() => {
-        setTimeSpent((timeSpent) => timeSpent + 1000);
-      }, 1000);
-      return () => clearInterval(intervalId);
-    }
-  }, [isCountingTime]);
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
@@ -63,87 +44,250 @@ export function MyForm() {
     }
   }, []);
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <MyRadio
-        value={currentPerson}
-        onChange={setCurrentPerson}
-        options={Object.entries(people).map(([key, value]) => ({
-          value: key,
-          label: value.name,
-        }))}
-        orientation="horizontal"
-      />
-      <Box sx={{ height: "200px", overflowY: "auto" }}>
-        <MyRadio
-          value={currentChore}
-          onChange={setCurrentChore}
-          options={Object.entries(chores).map(([key, value]) => ({
-            value: key,
-            label: value.name,
-          }))}
-          orientation="vertical"
-        />
-      </Box>
-      <FormControl>
-        <FormLabel>Note</FormLabel>
-        <Textarea
-          minRows={2}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-      </FormControl>
-      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
-        <FormControl>
-          <FormLabel>Inizio</FormLabel>
-          <Input
-            type="datetime-local"
-            value={new Date(
-              startTimestamp - new Date().getTimezoneOffset() * 60 * 1000
-            )
-              .toISOString()
-              .slice(0, 16)}
-            onChange={(event) => {
-              console.log(event.target.value);
-              setStartTimestamp(new Date(event.target.value).getTime());
-            }}
-          />
-        </FormControl>
-        <Button
-          onClick={() => {
-            setStartTimestamp(Date.now());
-          }}
-        >
-          Ora
-        </Button>
-      </Box>
-      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
-        <FormControl>
-          <FormLabel>Tempo [minuti]</FormLabel>
-          <Input
-            sx={{ width: 200 }}
-            value={Math.trunc(timeSpent / 1000 / 60)}
-            onChange={(event) =>
-              setTimeSpent(event.target.valueAsNumber * 60 * 1000)
-            }
-            endDecorator={`secondi ${Math.trunc(timeSpent / 1000) % 60}`}
-          />
-        </FormControl>
-        <Button
-          onClick={() => {
-            setIsCountingTime(!isCountingTime);
-          }}
-        >
-          {isCountingTime ? "Pausa" : "Conteggia"}
-        </Button>
-      </Box>
-      <Button
-        onClick={() => {
-          saveFormData();
-        }}
+    <QueryClientProvider client={client}>
+      <Suspense
+        fallback={
+          <div className="loader-container">
+            <div className="loader"></div>
+          </div>
+        }
       >
-        Inserisci
-      </Button>
-    </Box>
+        <Form />
+      </Suspense>
+    </QueryClientProvider>
+  );
+}
+
+function Form() {
+  const tableDescriptionQuery = useSuspenseQuery({
+    queryKey: ["tableDescription"],
+    async queryFn() {
+      return await getTableDescription();
+    },
+  });
+  const [isCountingTime, setIsCountingTime] = useState(false);
+  const FormValidator = z.object({
+    AutoreId: z.string(),
+    FaccendaId: z.string(),
+    Note: z.string(),
+    Data: z.number(),
+  });
+  const form = useForm({
+    defaultValues: {
+      AutoreId: undefined as any as string,
+      FaccendaId: undefined as any as string,
+      Note: "",
+      Data: Date.now(),
+      Minuti: 0,
+    } as z.infer<typeof FormValidator>,
+    validatorAdapter: zodValidator,
+    validators: {
+      onSubmit: FormValidator,
+    },
+    async onSubmit({ value }) {
+      try {
+        await saveFormData({
+          ...FormValidator.parse(value),
+          Minuti: Number(Minuti.toFixed(1)),
+        });
+        form.reset();
+        setHasSuccess(true);
+      } catch (error) {
+        console.error(error);
+        alert("Errore nell'inserimento dei dati");
+        throw error;
+      }
+    },
+  });
+  const [Minuti, setMinuti] = useState(0);
+  useEffect(() => {
+    if (isCountingTime) {
+      let lastTime = Date.now();
+      const intervalId = setInterval(() => {
+        const now = Date.now();
+        setMinuti((minuti) => minuti + (now - lastTime) / 1000 / 60);
+        lastTime = now;
+      }, 1000);
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [isCountingTime]);
+  const [hasSuccess, setHasSuccess] = useState(false);
+  const gifQuery = useSuspenseQuery({
+    queryKey: ["gif"],
+    async queryFn() {
+      return await getRandomGif();
+    },
+  });
+  if (tableDescriptionQuery.data.properties.Autore.type !== "select")
+    throw new Error("Autore non è un select");
+  if (tableDescriptionQuery.data.properties.Faccenda.type !== "select")
+    throw new Error("Faccenda non è un select");
+  const autori = tableDescriptionQuery.data.properties.Autore.select.options;
+  const faccende =
+    tableDescriptionQuery.data.properties.Faccenda.select.options;
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        form.handleSubmit();
+      }}
+    >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 2 }}>
+        <form.Field
+          name="AutoreId"
+          validators={{
+            onChange: FormValidator.shape.AutoreId,
+          }}
+        >
+          {(field) => (
+            <Fragment>
+              <MyRadio
+                value={field.state.value}
+                onChange={field.handleChange}
+                options={autori.map((value) => ({
+                  value: value.id,
+                  label: value.name,
+                  color: value.color,
+                }))}
+                orientation="horizontal"
+              />
+              {field.state.meta.errors.length > 0 && (
+                <Alert color="danger">
+                  {field.state.meta.errors.join(", ")}
+                </Alert>
+              )}
+            </Fragment>
+          )}
+        </form.Field>
+        <form.Field
+          name="FaccendaId"
+          validators={{
+            onChange: FormValidator.shape.FaccendaId,
+          }}
+        >
+          {(field) => (
+            <React.Fragment>
+              <Box sx={{ height: "300px", overflowY: "auto" }}>
+                <MyRadio
+                  value={field.state.value}
+                  onChange={field.handleChange}
+                  options={faccende.map((value) => ({
+                    value: value.id,
+                    label: value.name,
+                    color: value.color,
+                  }))}
+                  orientation="vertical"
+                />
+              </Box>
+              {field.state.meta.errors.length > 0 && (
+                <Alert color="danger">
+                  {field.state.meta.errors.join(", ")}
+                </Alert>
+              )}
+            </React.Fragment>
+          )}
+        </form.Field>
+        <form.Field name="Note">
+          {(field) => (
+            <FormControl>
+              <FormLabel>Note</FormLabel>
+              <Textarea
+                minRows={2}
+                value={field.state.value}
+                onChange={(event) => field.handleChange(event.target.value)}
+              />
+            </FormControl>
+          )}
+        </form.Field>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
+          <form.Field name="Data">
+            {(field) => (
+              <Fragment>
+                <FormControl>
+                  <FormLabel>Inizio</FormLabel>
+                  <Input
+                    type="datetime-local"
+                    value={new Date(
+                      field.state.value -
+                        new Date().getTimezoneOffset() * 60 * 1000
+                    )
+                      .toISOString()
+                      .slice(0, 16)}
+                    onChange={(event) => {
+                      field.handleChange(
+                        new Date(event.target.value).getTime()
+                      );
+                    }}
+                  />
+                </FormControl>
+                <Button
+                  onClick={() => {
+                    field.handleChange(Date.now());
+                  }}
+                >
+                  Ora
+                </Button>
+              </Fragment>
+            )}
+          </form.Field>
+        </Box>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-end" }}>
+          <FormControl>
+            <FormLabel>Tempo [minuti]</FormLabel>
+            <Input
+              sx={{ width: 200 }}
+              value={Math.trunc(Minuti)}
+              onChange={(event) => {
+                const asNumber = Number(event.target.value);
+                if (asNumber) {
+                  setMinuti(asNumber);
+                } else {
+                  setMinuti(0);
+                }
+              }}
+              endDecorator={`secondi ${Math.trunc(Minuti * 60) % 60}`}
+            />
+          </FormControl>
+          <Button
+            onClick={() => {
+              setIsCountingTime(!isCountingTime);
+            }}
+          >
+            {isCountingTime ? "Pausa" : "Conteggia"}
+          </Button>
+        </Box>
+        <form.Subscribe
+          selector={(state) => [state.canSubmit, state.isSubmitting]}
+        >
+          {([canSubmit, isSubmitting]) => (
+            <Button type="submit" disabled={!canSubmit}>
+              {isSubmitting ? "Sto inserendo" : "Submit"}
+            </Button>
+          )}
+        </form.Subscribe>
+      </Box>
+      {hasSuccess && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.5)",
+          }}
+          onClick={() => setHasSuccess(false)}
+        >
+          <img src={gifQuery.data} />
+        </div>
+      )}
+    </form>
   );
 }
 
@@ -155,7 +299,7 @@ function MyRadio({
 }: {
   value: string;
   onChange(value: string): void;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; color: string }>;
   orientation: "vertical" | "horizontal";
 }) {
   return (
@@ -169,15 +313,29 @@ function MyRadio({
           boxShadow: "sm",
         }}
       >
-        {options.map(({ value, label }, index) => (
-          <Fragment key={value}>
+        {options.map((item, index) => (
+          <Fragment key={item.value}>
             {index !== 0 && <ListDivider />}
             <ListItem>
-              <Radio id={value} value={value} label={label} />
+              <Radio
+                id={item.value}
+                value={item.value}
+                label={item.label}
+                checked={item.value === value}
+                onChange={(event) => onChange(event.target.value)}
+              />
             </ListItem>
           </Fragment>
         ))}
       </List>
     </RadioGroup>
   );
+}
+
+async function getRandomGif() {
+  const response = await fetch(
+    "https://api.giphy.com/v1/gifs/random?api_key=0UTRbFtkMxAplrohufYco5IY74U8hOes&tag=nice job&rating=pg-13"
+  );
+  const data = await response.json();
+  return data.data.images.original.url;
 }
