@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, Suspense, useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import Box from "@mui/joy/Box";
 import List from "@mui/joy/List";
 import ListItem from "@mui/joy/ListItem";
@@ -12,20 +12,19 @@ import FormControl from "@mui/joy/FormControl";
 import FormLabel from "@mui/joy/FormLabel";
 import Input from "@mui/joy/Input";
 import { Alert, Textarea } from "@mui/joy";
-import { getTableDescription, saveFormData } from "../actions/submitForm";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { saveFormData } from "../actions/submitForm";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import "./style.css";
 
-const client = new QueryClient({});
-
-export function MyForm() {
+export function MyForm({
+  autori,
+  faccende,
+}: {
+  autori: Array<{ id: string; name: string; color: string }>;
+  faccende: Array<{ id: string; name: string; color: string }>;
+}) {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
@@ -43,28 +42,6 @@ export function MyForm() {
       });
     }
   }, []);
-  return (
-    <QueryClientProvider client={client}>
-      <Suspense
-        fallback={
-          <div className="loader-container">
-            <div className="loader"></div>
-          </div>
-        }
-      >
-        <Form />
-      </Suspense>
-    </QueryClientProvider>
-  );
-}
-
-function Form() {
-  const tableDescriptionQuery = useSuspenseQuery({
-    queryKey: ["tableDescription"],
-    async queryFn() {
-      return await getTableDescription();
-    },
-  });
   const [isCountingTime, setIsCountingTime] = useState(false);
   const FormValidator = z.object({
     AutoreId: z.string(),
@@ -114,19 +91,11 @@ function Form() {
     }
   }, [isCountingTime]);
   const [hasSuccess, setHasSuccess] = useState(false);
-  const gifQuery = useSuspenseQuery({
-    queryKey: ["gif"],
-    async queryFn() {
-      return await getRandomGif();
-    },
-  });
-  if (tableDescriptionQuery.data.properties.Autore.type !== "select")
-    throw new Error("Autore non è un select");
-  if (tableDescriptionQuery.data.properties.Faccenda.type !== "select")
-    throw new Error("Faccenda non è un select");
-  const autori = tableDescriptionQuery.data.properties.Autore.select.options;
-  const faccende =
-    tableDescriptionQuery.data.properties.Faccenda.select.options;
+  const [gif, setGif] = useState("");
+  useEffect(() => {
+    getRandomGif().then(setGif);
+  }, []);
+
   return (
     <form
       onSubmit={(event) => {
@@ -284,7 +253,7 @@ function Form() {
           }}
           onClick={() => setHasSuccess(false)}
         >
-          <img src={gifQuery.data} />
+          <img src={gif} style={{ maxWidth: "100%", maxHeight: "100%" }} />
         </div>
       )}
     </form>
